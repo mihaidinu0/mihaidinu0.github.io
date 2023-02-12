@@ -35,6 +35,33 @@ plugins:
   - jekyll-feed
   - jekyll-include-cache
 
+
+author:
+  name: "Mihai Dinu"
+  avatar: "/assets/images/profile.jpeg"
+  bio: "CS Undergrad @ Politehnica University of Bucharest"
+  location: "Bucharest, Romania"
+  links:
+    - label: "Website"
+      icon: "fas fa-fw fa-link"
+      url: "https://xxx.com"
+    - label: "Twitter"
+      icon: "fab fa-fw fa-twitter-square"
+      url: "https://twitter.com/mihaidinu0"
+    - label: "GitHub"
+      icon: "fab fa-fw fa-github"
+      url: "https://github.com/mihaidinu0"
+    - label: "Instagram"
+      icon: "fab fa-fw fa-instagram"
+      url: "https://instagram.com/mihaidinu00"
+
+
+
+
+
+
+
+
 # Exclude from processing.
 # The following items will not be processed, by default.
 # Any item listed under the `exclude:` key here will be automatically added to
