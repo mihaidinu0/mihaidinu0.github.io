@@ -36,6 +36,7 @@ plugins:
   - jekyll-include-cache
 
 
+# Site Author
 author:
   name: "Mihai Dinu"
   avatar: "/assets/images/profile.jpeg"
@@ -56,6 +57,7 @@ author:
       url: "https://instagram.com/mihaidinu00"
 
 
+# Navbar
 main:
   - title: "Quick-Start Guide"
     url: /docs/quick-start-guide/
@@ -72,6 +74,9 @@ main:
   - title: "External Link"
     url: https://google.com
 
+# Disable RSS Feed Icon (Source: https://mmistakes.github.io/minimal-mistakes/docs/configuration/#disable-feed-icons)
+atom_feed:
+  hide: true
 
 
 
