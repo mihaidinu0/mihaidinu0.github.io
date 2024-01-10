@@ -1,0 +1,1874 @@
+﻿//-----------------------------------------------------------------------//
+//Decode section
+
+
+`decode: begin
+
+
+// data transfer / control 
+        if(cop[0:3] == 4'b0000) begin
+                if(cop[4:6] == 3'b000)         // MOV
+                begin
+                        decoded_d_next = d;
+                        decoded_exec_next = `transfer;
+                decoded_dst_next = (mod == 2'b11) || (d == 1) ? `load_dst_reg :`load_dst_mem; 
+                        decoded_src_next = (mod == 2'b11) || (d == 0) ? `load_src_reg :`load_src_mem;
+                        decoded_store_next = (mod == 2'b11) || (d == 1) ? `store_reg : `store_mem;
+                end
+                
+                else if(cop[4:6] == 3'b010) // PUSH
+                begin
+                                                
+                        decoded_d_next = 0;
+                        decoded_exec_next = `decrement_IS;
+                        decoded_dst_next = (mod == 2'b11) ? `load_dst_reg : `load_dst_mem; 
+                        decoded_src_next = `skip_load_src;
+                        decoded_store_next = `store_mem;
+                end
+                
+                else if(cop[4:6] == 3'b011) // POP 
+                begin
+                        decoded_d_next = 0;
+                        decoded_exec_next = `increment_IS;
+                        decoded_dst_next = (mod != 2'b11) ? `skip_load_dst : `load_dst_reg;
+                        decoded_src_next = `skip_load_src;
+                        decoded_store_next = (mod == 2'b11) ? `store_reg : `store_mem;
+                end
+                
+                else if(cop[4:6] == 3'b100) // CALL
+                begin
+                        decoded_d_next = 0;
+                        decoded_exec_next = `call;
+                        decoded_dst_next = (mod != 2'b11) ? `skip_load_dst : `load_dst_reg;
+                        decoded_src_next = `skip_load_src;
+                        decoded_store_next = (mod == 2'b11) ? `store_reg : `store_mem;
+                end
+                
+                else if(cop[4:6] == 3'b101) // JMP
+                begin
+                        decoded_d_next = 0;
+                        decoded_exec_next = `jmp;
+                        decoded_dst_next = (mod != 2'b11) ? `skip_load_dst : `load_dst_reg;
+                        decoded_src_next = `skip_load_src;
+                        decoded_store_next = (mod == 2'b11) ? `store_reg : `store_mem;
+                end
+                                        
+        end
+                  
+        // MOV cu operand imediat
+        else if(cop[0:3] == 3'b0010) begin
+                decoded_d_next = 0;
+                decoded_exec_next = `transfer;
+                decoded_dst_next = mod == 2'b11 ? `load_dst_reg : `load_dst_mem;
+                decoded_src_next = `load_operand_imediat;
+                decoded_store_next = (mod == 2'b11) ? `store_reg : `store_mem;
+        end
+        
+            // decode location of operands and operation
+            else if(cop[0:3] == 4'b0001) // one operand instructions
+        begin           
+decoded_d_next      = 0;
+decoded_dst_next    = mod == 2'b11 ? `load_dst_reg : `load_dst_mem;
+decoded_src_next    = decoded_dst_next;
+decoded_exec_next   = `exec_1op;
+decoded_store_next  = mod == 2'b11 ? `store_reg : `store_mem;
+end
+                                
+else if(cop[0:2] == 3'b010) // two operand instructions
+        begin       
+decoded_d_next      = d;
+decoded_dst_next    = (mod == 2'b11) || (d == 1) ? `load_dst_reg : `load_dst_mem;
+decoded_src_next    = (mod == 2'b11) || (d == 0) ? `load_src_reg : `load_src_mem;
+decoded_exec_next   = `exec_2op;
+decoded_store_next  = !cop[3] ? `skip_store : ((mod == 2'b11) || (d == 1) ? `store_reg : `store_mem);
+end
+            
+        else if(cop[0:2] == 3'b011) // two operand instruction - adresare imediata
+        begin
+                decoded_d_next = 0;
+                decoded_dst_next = (mod == 2'b11) ? `load_dst_reg : `load_dst_mem;
+                decoded_src_next = `load_operand_imediat;
+                decoded_exec_next = `exec_2op;
+decoded_store_next = (!cop[3]) ? `skip_store : ((mod == 2'b11) ? `store_reg :`store_mem);
+                
+        end
+        
+        else if(cop[0:3] == 4'b1001) // JCOND
+        begin
+                                                
+                state_next = `jcond;
+                                                
+        end
+                                        
+        else if(cop[0:3] == 4'b1000) begin
+                                                
+                if(cop[4:6] == 3'b100) // RET
+                begin
+                
+                        state_next = `ret;
+                                                        
+                end
+                                                
+                if(cop[4:6] == 3'b010) // PUSHF
+                begin
+                
+                        state_next = `pushf;
+                
+                end
+                
+                if(cop[4:6] == 3'b011) // POPF
+                begin
+                
+                        state_next = `popf;
+                
+                end
+                
+        end
+        
+// decode address calculation mode
+        if(cop[0] == 0) begin
+                case(mod)
+                
+                2'b00: begin
+                        state_next = rm[0] ? `addr_reg : `addr_sum;
+                end
+
+
+                2'b01: begin
+                        if(rm[0] == 0)
+                        begin
+                                state_next = `addr_autoincrement;
+                        end
+                        else if(rm[1] == 0)
+                        begin
+                                state_next = `addr_autodecrement;
+                        end
+                        else if(rm[2] == 0)
+                        begin
+                                state_next = `addr_indirect;
+                        end
+                        else
+                        begin
+                                state_next = `addr_2x_indirect;
+                        end
+                                                                
+                 end
+
+
+                2'b10: begin
+                        state_next = rm[0] ? `addr_reg_deplasata : `addr_sum_deplasata;
+                end
+                
+                2'b11: begin
+                        state_next = decoded_src_next;
+                end
+                
+                endcase
+        end
+        
+end
+
+
+//-----------------------------------------------------------------------//
+//MOV instruction
+        
+//Transfera un cuvant de la sursa T2 la destinatia T1
+`transfer: begin
+
+
+                t1_oe = 0;
+                t2_oe = 1;
+                
+                alu_carry = 0;
+                alu_opcode = `OR;
+                
+                alu_oe = 1;
+                
+                t1_we = 1;
+                
+                state_next = decoded_store;
+        end
+ 
+//-----------------------------------------------------------------------//
+//PUSH instruction
+                        
+// Scopul instructiunii PUSH este de a decrementa IS, si de a
+// transfera un cuvant specificat de op sursa T2 in varful stivei
+// indicate de IS 
+        
+// valoarea lui IS se pune in T2
+`decrement_IS: begin
+        
+                regs_oe = 1;
+                regs_addr = `IS;
+                
+                t2_we = 1;
+                
+                state_next = `decrement_IS + 1;
+                  
+        end
+        
+// se decrementeaza T1 (adica IS) si se memoreaza in IS
+        `decrement_IS + 'd1: begin
+                  
+                t2_oe = 1;
+                alu_oe = 1;
+                
+                regs_addr = `IS;
+                regs_we = 1;
+                
+                alu_carry = 1;
+                alu_opcode = `SBB2;
+                
+                am_we = 1;
+                
+                state_next = decoded_store;
+        end
+
+
+//-----------------------------------------------------------------------//
+//POP instruction
+        
+// Scopul instructiunii POP este de a transfera cuvantul din varful
+// stivei indicat de IS, la operandul destinatie, dupa care se incrementeaza IS
+          
+// Se obtine din memorie operandul din varful stivei indicat de IS
+        `increment_IS: begin
+        
+                regs_oe = 1;
+                regs_addr = `IS;
+                
+                am_we = 1;
+                
+                state_next = `increment_IS + 1;
+                  
+        end
+        
+`increment_IS + 'd1: begin
+        
+                am_oe = 1;
+                
+                state_next = `increment_IS + 2;
+                
+        end
+// Se introduce valoarea obtinuta in T2, conform Fig 5.4
+        `increment_IS + 'd2: begin
+        
+                ram_oe = 1;
+                t2_we = 1;
+                
+                state_next = `increment_IS + 3;
+                
+         end
+        
+// Se transfera in memorie vechea valoare din T1
+        `increment_IS + 'd3: begin
+                t1_oe = 1;
+                am_we = 1;
+                
+                alu_carry = 0;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                
+                state_next = `increment_IS + 4;
+                
+        end
+
+
+// Se incrementeaza IS, folosind T1
+        `increment_IS + 'd4: begin
+        
+                regs_oe = 1;
+                regs_addr = `IS;
+                t1_we = 1;
+                
+                state_next = `increment_IS + 5;
+                
+        end
+        
+// Se suprascrie IS cu noua valoare
+        `increment_IS + 'd5: begin
+        
+                t1_oe = 1;
+                
+                regs_we = 1;
+                regs_addr = `IS;
+        
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                
+// se transfera T2 in T1 pt ca operandul sa ajunga in registrul destinatie
+                state_next = `transfer;
+                
+        end
+
+
+//-----------------------------------------------------------------------//
+//JMP instruction
+
+
+// Se sare la adresa din destinatie
+        `jmp:  begin
+        
+                t1_oe = 1;
+                t2_oe = 0;
+                
+                alu_opcode = `OR;
+                
+                alu_oe = 1;
+                cp_we = 1;
+                
+                state_next = `fetch;
+                
+        end
+
+
+//-----------------------------------------------------------------------//
+//RET instruction
+        
+// urmarim sa punem in CP valoarea din memorie de la adresa stocata in IS iar apoi sa incrementam IS
+        
+// valoarea din registrul IS se introduce in AM
+        `ret: begin
+        
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                am_we = 1;
+                
+                state_next = `ret + 1;
+                
+        end
+        
+// stochez in T1 valoarea din registrul IS, pentru a fi incrementata ulterior
+        `ret + 'd1: begin
+        
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                t1_we = 1;
+                
+                state_next = `ret + 2;
+                  
+        end
+        
+// obtinem valoarea din memorie, de la adresa stocata in AM
+        `ret + 'd2: begin
+
+
+                am_oe = 1;
+        
+                state_next = `ret + 3;
+                
+        end
+
+
+// introducem in CP outputul memoriei RAM
+        `ret + 'd3: begin
+        
+                ram_oe = 1;
+        
+                cp_we = 1;
+                
+                state_next = `ret + 4;
+                
+                end
+                
+// incrementam IS si trecem la urmatoarea instructiune
+`ret + 'd4: begin
+        
+                t1_oe = 1;
+                t2_oe = 0;
+                
+                regs_addr = `IS;
+                regs_we = 1;
+                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                
+                state_next = `fetch;
+        
+        end
+
+
+//-----------------------------------------------------------------------//
+//PUSHF instruction
+        
+// urmarim sa decrementam IS, si sa punem in memorie IND, la adresa data de valoarea noului IS
+
+
+// decrementam IS
+        `pushf: begin
+        
+                t1_we = 1;
+                
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                state_next = `pushf + 1;
+                
+        end
+        
+        `pushf + 'd1: begin
+                t1_oe = 1;
+                t2_oe = 0;
+        
+                regs_addr = `IS;
+                
+                regs_we = 1;
+        
+                alu_carry = 1;
+                alu_opcode = `SBB1;
+        
+                alu_oe = 1;
+        
+                state_next = `pushf + 2;
+                
+        end
+        
+// introducem in AM noua valoare a lui IS, pentru a scrie ulterior la aceasta adresa
+`pushf + 'd2: begin
+        
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                am_we = 1;
+                
+                state_next = `pushf + 3;
+        end
+                  
+// introducem in memorie, valoarea indicatorilor
+        `pushf + 'd3:
+        begin
+                                
+                am_oe = 1;
+                ram_we = 1;
+                                
+                ind_oe = 1;
+                                
+                state_next = `inc_cp;
+                  
+        end
+
+
+//-----------------------------------------------------------------------//
+//POPF instruction
+
+
+// urmarim sa rescriem valoarea indicatorilor (IND) cu valoarea aflata in 
+// memorie la adresa IS, si apoi sa incrementam IS 
+
+
+// introducem in AM valoarea lui IS, pentru a obtine noua valoare a lui IND
+`popf: begin
+                am_we = 1;
+                t1_we = 1;
+                
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                state_next = `popf + 1;
+                
+        end
+        
+`popf + 'd1: begin
+                  
+                am_oe = 1;
+                
+                state_next = `popf + 2;
+        
+        end
+        
+        `popf + 'd2: begin
+        
+                ram_oe = 1;
+                
+                ind_we = 1;
+                
+                state_next = `popf + 3;
+        
+        end
+        
+// incrementam IS
+        `popf + 'd3: begin
+        
+                t1_oe = 1;
+                t2_oe = 2;
+                
+                regs_addr = `IS;
+                regs_we = 1;
+                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                
+                state_next = `inc_cp;
+                  
+        end
+
+
+//-----------------------------------------------------------------------//
+//JCOND instruction
+        `jcond: begin
+        
+                ind_sel = 1;
+                
+                state_next = `jcond + 1;
+                
+        end
+        
+        `jcond + 'd1: begin
+
+
+// JBE
+                if(ri[7:4] == 4'b0000) begin
+                
+                        state_next = (ind[0] || ind[2]) == 1 ? `jcond + 'd3 : `inc_cp;
+                
+        end
+        
+//JB/JC
+                if(ri[7:4] == 4'b1000) begin
+                
+                        state_next = ind[0] == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JLE
+                if(ri[7:4] == 4'b0100) begin
+                
+state_next = ((~(ind[3] & ind[1]) & ~( ~ind[3] & ~ind[1])) || ind[2]) == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JL
+                if(ri[7:4] == 4'b1100) begin
+                
+state_next = (~(ind[3] & ind[1]) & ~( ~ind[3] & ~ind[1])) == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                                
+        //JE/JZ
+                if(ri[7:4] == 4'b0010) begin
+                
+                        state_next = ind[2] == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JO
+                if(ri[7:4] == 4'b1010) begin
+                
+                        state_next = ind[1] == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                                
+        //JS
+                if(ri[7:4] == 4'b0110) begin
+                
+                        state_next = ind[3] == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JPE
+                if(ri[7:4] == 4'b1110) begin
+                
+                        state_next = ind[4] == 1 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JA
+                if(ri[7:4] == 4'b0001) begin
+        
+                        state_next = (ind[0] || ind[2]) == 0 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JAE/JNC
+                if(ri[7:4] == 4'b1001) begin
+                                
+                        state_next = ind[0] == 0 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JG
+                if(ri[7:4] == 4'b0101) begin
+                
+state_next = ((~(ind[3] & ind[1]) & ~( ~ind[3] & ~ind[1])) || ind[2]) == 0 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JGE
+                if(ri[7:4] == 4'b1101) begin
+                                
+state_next = (~(ind[3] & ind[1]) & ~( ~ind[3] & ~ind[1])) == 0 ? `jcond + 'd3 : `inc_cp;
+end
+        //JNE/JNZ
+                if(ri[7:4] == 4'b0011) begin
+                
+                        state_next = ind[2] == 0 ? `jcond + 'd3 : `inc_cp;
+                
+                end
+                
+        //JNO
+                if(ri[7:4] == 4'b1011) begin
+                                
+                        state_next = ind[1] == 0 ? `jcond + 'd3 : `inc_cp;
+                                
+                end
+                                
+        //JNS
+                if(ri[7:4] == 4'b0111) begin
+                                
+                        state_next = ind[3] == 0 ? `jcond + 'd3 : `inc_cp;
+                                
+                end
+                                
+        //JPO
+                if(ri[7:4] == 4'b1111) begin
+                                
+                        state_next = ind[4] == 0 ? `jcond + 'd3 : `inc_cp;
+                                
+                end
+        end
+
+
+// deplasamentul -> T1
+        `jcond + 'd3: begin
+                  
+                ri_oe = 1;
+                t2_we = 1;
+                
+                state_next = `jcond + 4;
+        
+        end
+        
+// CP -> T2
+        `jcond + 'd4: begin
+        
+                t1_we = 1;
+                cp_oe = 1;
+                
+                state_next = `jcond + 5;
+        
+        end
+// CP = CP + deplasament
+        `jcond + 'd5: begin
+        
+                t1_oe = 1;
+                t2_oe = 1;
+                                
+                alu_carry = 0;
+                alu_opcode = `ADC;
+                                
+                alu_oe = 1;
+                cp_we = 1;
+                                
+                state_next = `fetch;
+                                
+        end
+
+
+//-----------------------------------------------------------------------//
+//CALL instruction
+
+
+// incrementare CP (se introduce CP in T2, si apoi 
+// rezultatul se reintroduce in CP)
+`call: begin
+                                
+                cp_oe = 1;
+                t2_we = 1;
+                                
+                state_next = `call + 1;
+                  
+        end
+                  
+        `call + 'd1:  begin
+                  
+                t2_oe = 1;
+                t1_oe = 0;
+                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                alu_oe = 1;
+                                
+                cp_we = 1;
+                                
+                state_next = `call + 2;
+        end
+        
+// se decrementeaza IS (se introduce IS in T2, si apoi
+// rezultatul se reintroduce in IS) 
+        `call + 'd2: begin
+                                
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                t2_we = 1;
+                                
+                state_next = `call + 3;
+                                
+        end
+                  
+        `call + 'd3: begin
+                                
+                t1_oe = 0;
+                t2_oe = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `SBB2;
+                                
+                alu_oe = 1;
+                                
+                regs_addr = `IS;
+                regs_we = 1;
+                                
+                state_next = `call + 4;
+                                
+        end
+                  
+// se introduce valoarea IS in AM pentru a scrie la acea valoare a adresei
+        `call + 'd4: begin
+                                
+                regs_addr = `IS;
+                regs_oe = 1;
+                                
+                am_we = 1;
+                                
+                state_next = `call + 5;                                
+                  
+        end
+                  
+// se memoreaza la adresa IS in RAM, valoarea din CP
+        `call + 'd5: begin
+                                
+                cp_oe = 1;
+                am_oe = 1;
+                                
+                ram_we = 1;
+                                
+                state_next = `call + 6;
+                  
+end
+                  
+`call + 'd6: // starea se poate inlocui cu un apel de JMP
+begin
+                                
+                t1_oe = 1;
+                t2_oe = 0;
+                                
+                alu_opcode = `OR;
+                alu_oe = 1;
+                                
+                cp_we = 1;
+                                
+                state_next = `fetch;
+                                
+        end
+                  
+`addr_sum: begin
+regs_addr = rm[1] ? `BB : `BA;
+regs_oe = 1;
+t1_we = 1;
+
+
+state_next = `addr_sum + 1;
+end
+
+
+`addr_sum + 'd1: begin
+regs_addr = rm[2] ? `XB : `XA;
+regs_oe = 1;        
+t2_we = 1;
+
+
+state_next = `addr_sum + 2;
+end
+
+
+`addr_sum + 'd2: begin
+t1_oe = 1;
+t2_oe = 1;
+alu_carry = 0;
+alu_opcode = `ADC;
+alu_oe = 1;
+if(decoded_d)
+t2_we = 1;
+else
+t1_we = 1;
+
+
+state_next = decoded_src;
+end
+
+
+//-----------------------------------------------------------------------//
+//Addresing of type [XA/XB/BA/BB + Deplasament]
+
+
+// se memoreaza in T1 informatia din RM
+        `addr_reg_deplasata: begin
+                                
+                regs_addr = rm;
+                regs_oe = 1;
+                                
+                t1_we = 1;
+                                
+                state_next = `addr_reg_deplasata + 1;
+                                
+        end
+                  
+// se muta in T2 valoarea din registrul CP in scopul incrementarii ei
+        `addr_reg_deplasata + 'd1: begin
+                                
+                cp_oe = 1;
+                                
+                t2_we = 1;
+                                
+                state_next = `addr_reg_deplasata + 2;
+                                
+        end
+                  
+// se incrementeaza valoarea din T2 si se memoreaza in CP
+        `addr_reg_deplasata + 'd2: begin
+                                
+                t2_oe = 1;
+                cp_we = 1;
+                                
+                alu_oe = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                state_next = `addr_reg_deplasata + 3;
+                        
+        end
+                  
+`addr_reg_deplasata + 'd3: begin
+                                
+                cp_oe = 1;
+                                
+                am_we = 1;
+                                
+                state_next = `addr_reg_deplasata + 4;
+                  
+        end
+                  
+// in urmatoarele doua stari se obtine valoarea deplasamentului aflat in memorie
+        `addr_reg_deplasata + 'd4: begin
+                                
+                am_oe = 1;
+                
+                state_next = `addr_reg_deplasata + 5;
+                                
+        end
+                  
+        `addr_reg_deplasata + 'd5: begin
+                
+                ram_oe = 1;
+                t2_we = 1;
+                
+                state_next = `addr_reg_deplasata + 6;
+                                
+        end
+                  
+// se insumeaza T2 si T1 pentru obtinerea adresei finale
+        `addr_reg_deplasata + 'd6: begin
+                                
+                t1_oe = 1;
+                t2_oe = 1;
+                                
+                alu_carry = 0;
+                alu_opcode = `ADC;
+                alu_oe = 1;
+                                
+                if(decoded_d)
+t2_we = 1;
+else
+t1_we = 1;
+                                
+                state_next = decoded_src;
+                                
+        end
+
+
+//-----------------------------------------------------------------------//
+//Addresing of type [BA + XA/XB / BB + XA/XB + Deplasament]
+
+
+        `addr_sum_deplasata:  begin
+                                
+                regs_addr = rm[1] ? `BB : `BA;
+regs_oe = 1;
+t1_we = 1;
+                                
+        state_next = `addr_sum_deplasata + 1;
+                                
+        end
+                  
+        `addr_sum_deplasata + 'd1: begin
+                                
+                regs_addr = rm[2] ? `XB : `XA;
+regs_oe = 1;
+t2_we = 1;
+
+
+state_next = `addr_sum_deplasata + 2;
+                                
+        end
+                  
+// realizam suma dintre T1 si T2 pe care o introducem in T1
+// aceasta suma va reprezenta suma registrilor, la care urmeaza
+// sa adaugam deplasamentul 
+        `addr_sum_deplasata + 'd2: begin
+                                
+                t1_oe = 1;
+                t2_oe = 1;
+                                
+                alu_carry = 0;
+                alu_opcode = `ADC;
+                alu_oe = 1;
+                                
+                t1_we = 1;
+                                
+                state_next = `addr_sum_deplasata + 3;
+                                
+        end
+                  
+// se muta in T2 valoarea din registrul cp in scopul incrementarii ei
+        `addr_sum_deplasata + 'd3: begin
+                                
+                cp_oe = 1;
+                                
+                t2_we = 1;
+                                
+                state_next = `addr_sum_deplasata + 4;
+                                
+        end
+                  
+// se incrementeaza cp 
+        `addr_sum_deplasata + 'd4: begin
+                                
+                t2_oe = 1;        
+                alu_oe = 1;
+                                
+                cp_we = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                state_next = `addr_sum_deplasata + 5;
+                                
+        end
+                  
+// se scrie in am valoarea din cp in scopul obtinerii deplasamentului
+        `addr_sum_deplasata + 'd5: begin
+                                
+                cp_oe = 1;
+                am_we = 1;
+                                
+                state_next = `addr_sum_deplasata + 6;
+                  
+        end
+                  
+        `addr_sum_deplasata + 'd6: begin
+                                
+                am_oe = 1;
+                                                        
+                state_next = `addr_sum_deplasata + 7;
+                
+        end
+                  
+// in urm 2 stari se obtine deplasamentul din memorie, si se memoreaza in T2
+        `addr_sum_deplasata + 'd7: begin
+                                
+                ram_oe = 1;
+                t2_we = 1;
+                                
+                state_next = `addr_sum_deplasata + 8;
+                                
+        end
+                  
+// prin suma dintre T1 si T2, se obtine valoarea adresei finale
+        `addr_sum_deplasata + 'd8: begin
+                                        
+                t1_oe = 1;
+                t2_oe = 1;
+                
+                alu_carry = 0;
+                alu_opcode = `ADC;
+                alu_oe = 1;
+                
+                if(decoded_d)
+t2_we = 1;
+else
+t1_we = 1;
+                                
+                state_next = decoded_src;
+                  
+end
+
+
+//-----------------------------------------------------------------------//
+//Indirect addressing
+                  
+// pentru cazul adresarii indirecte, vom lua din memoria RAM operandul
+                  
+// incrementam CP, si il punem in AM pentru a citi urmatorul cuvant, care reprezinta operandul
+        `addr_indirect: begin
+                                
+                cp_oe = 1;
+                t1_we = 1;
+                                
+                state_next = `addr_indirect + 1;
+                                
+        end
+                  
+        `addr_indirect + 'd1: begin
+                  
+                t1_oe = 1;
+                t2_oe = 0;
+                                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                alu_oe = 1;
+                                
+                am_we = 1;
+                cp_we = 1;
+                                
+                state_next = `addr_indirect + 2;
+                                
+        end
+                  
+        `addr_indirect + 'd2:  begin
+                                
+                am_oe = 1;
+                                
+                state_next = `addr_indirect + 3;
+                  
+        end
+                  
+        `addr_indirect + 'd3: begin
+                                
+                ram_oe = 1;
+                                
+                if(decoded_d)
+                        t2_we = 1;
+                else
+                        t1_we = 1;
+                                        
+                state_next = decoded_src;
+                  
+        end
+//-----------------------------------------------------------------------//
+//Double indirect addressing
+
+
+// In cazul deplasarii dublu indirecte, operandul va fi luat tot din RAM
+                  
+// incrementam CP, il punem in AM pentru a citi urmatorul cuvant
+// urmatorul cuvant, il punem din nou in AM, pentru a obtine operandul
+                  
+// incrementare CP
+        `addr_2x_indirect: begin
+                                
+                t1_we = 1;
+                cp_oe = 1;
+                                
+                state_next = `addr_2x_indirect + 1;
+                                
+        end
+                  
+        `addr_2x_indirect + 'd1: begin
+                                
+                t1_oe = 1;
+                t2_oe = 0;
+                                
+                alu_oe = 1;
+                cp_we = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                state_next = `addr_2x_indirect + 2;
+                  
+        end
+                  
+// introducem in AM CP+1 pentru a obtine urmatorul cuvant
+        `addr_2x_indirect + 'd2: begin
+                                
+                am_we = 1;
+                cp_oe = 1;
+                                
+                state_next = `addr_2x_indirect + 3;
+                                
+        end
+                  
+`addr_2x_indirect + 'd3: begin
+                                
+                am_oe = 1;
+                
+                state_next = `addr_2x_indirect + 4;
+                                
+        end
+                  
+// cuvantul obtinut se introduce tot in AM, pentru a obtine operandul
+        `addr_2x_indirect + 'd4: begin
+                  
+                am_we = 1;
+                ram_oe = 1;
+                                
+                state_next = `addr_2x_indirect + 5;
+                  
+        end
+                  
+        `addr_2x_indirect + 'd5: begin
+                                
+                am_oe = 1;
+                                
+                state_next = `addr_2x_indirect + 6;
+                                
+        end
+                  
+        `addr_2x_indirect + 'd6: begin
+                                
+                ram_oe = 1;
+                
+                if(decoded_d)
+                        t2_we = 1;
+                else
+                        t1_we = 1;
+                                
+                state_next = decoded_src;
+                  
+        end
+
+
+//-----------------------------------------------------------------------//
+//Indirect addressing - reg sum - autodecrement
+
+
+// Adresa efectiva va fi adresa obtinuta prin insumarea 
+// BB/BA + XA, unde XA este valoarea obtinuta dupa decrementare
+                  
+`addr_autodecrement: begin
+                  
+                regs_addr = rm[2] ? `BB : `BA;
+                regs_oe = 1;
+                                
+                t1_we = 1;
+                                
+                state_next = `addr_autodecrement + 1;
+                  
+        end
+                  
+// se decrementeaza XA
+        `addr_autodecrement + 'd1: begin
+                                
+                regs_addr = `XA;
+                regs_oe = 1;
+                                
+                t2_we = 1;
+                                
+                state_next = `addr_autodecrement + 2;
+                  
+        end
+                  
+        `addr_autodecrement + 'd2: begin
+                                
+                t2_oe = 1;
+                t1_oe = 0;
+                                
+                regs_addr = `XA;
+                regs_we = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `SBB2;
+                                
+                alu_oe = 1;
+
+
+                state_next = `addr_autodecrement + 3;
+                                
+        end
+                  
+// urmarim sa realizam suma dintre XA decrementat si BB/BA
+        `addr_autodecrement + 'd3: begin
+                  
+                t2_we = 1;
+                                
+                regs_addr = `XA;
+                regs_oe = 1;
+                                
+                state_next = `addr_autodecrement + 4;
+                  
+        end
+                  
+        `addr_autodecrement + 'd4: begin
+                                
+                t1_oe = 1;
+                t2_oe = 1;
+                                
+                alu_opcode = `ADC;
+                alu_oe = 1;
+                                
+                if(decoded_d)
+                        t2_we = 1;
+                else
+                        t1_we = 1;
+                                        
+                state_next = decoded_src;
+                  
+        end
+                  
+`addr_reg: begin
+regs_addr = rm;
+regs_oe = 1;
+if(decoded_d)
+t2_we = 1;
+else
+ t1_we = 1;
+
+
+state_next = decoded_src;
+ end
+
+
+//-----------------------------------------------------------------------//
+//Indirect addressing - reg sum - autoincrement
+
+
+// Adresa efectiva va fi adresa obtinuta prin insumarea BA/BB + XA/XB
+// iar apoi XA/XB se incrementeaza
+                  
+// Initial vom realiza suma dintre registre, iar apoi vom incrementa XA si XB
+        `addr_autoincrement: begin
+                                
+                regs_addr = rm[1] ? `BB : `BA;
+                regs_oe = 1;
+                                
+                t1_we = 1;
+                                
+                state_next = `addr_autoincrement + 1;                                
+                                
+        end
+                  
+        `addr_autoincrement + 'd1: begin
+                                
+                regs_addr = rm[2] ? `XB : `XA;
+                regs_oe = 1;
+                                
+                t2_we = 1;
+                                
+                state_next = `addr_autoincrement + 2;                                
+                                
+        end
+                  
+// realizez suma dintre registrii
+        `addr_autoincrement + 'd2: begin
+                                
+                t1_oe = 1;
+                t2_oe = 1;
+                                
+                alu_opcode = `ADC;
+                alu_oe = 1;
+                                
+                if(decoded_d)
+                        t2_we = 1;
+                else
+                        t1_we = 1;
+                                        
+                state_next = `addr_autoincrement + 3;
+                  
+        end
+                  
+// se introduce XA sau XB in registrul ramas liber pentru a fi incrementat
+        `addr_autoincrement + 'd3: begin
+                                
+                regs_addr = rm[2] ? `XB : `XA;
+                regs_oe = 1;
+                                
+                if(decoded_d)                
+                        t1_we = 1;
+                else
+                        t2_we = 1;
+                                
+                state_next = `addr_autoincrement + 4;
+                  
+        end
+                  
+`addr_autoincrement + 'd4:  begin
+                                
+                regs_addr = rm[2] ? `XB : `XA;
+                regs_we = 1;
+                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                                
+                if(decoded_d)
+                begin
+                                        
+                        t1_oe = 1;
+                        t2_oe = 0;
+                                                                                
+                end
+                                
+                else
+                begin
+                                        
+                        t1_oe = 0;
+                        t2_oe = 1;
+                                        
+                end
+                                
+                        state_next = decoded_src;
+                                                                
+         end
+
+
+//-----------------------------------------------------------------------//
+//Memorarea operandului imediat
+
+
+// Se urmareste memorarea in T2 a operandului imediat, in scopul
+// implementarii operatiilor cu operand imediat
+                  
+// Urmarim prima data incrementarea CP, pentru a obtine operandul de la adresa CP + 1
+        `load_operand_imediat: begin
+                                
+                cp_oe = 1;
+                t2_we = 1;
+                                
+                state_next = `load_operand_imediat + 1;
+                                
+        end
+                  
+// Se obtine CP+1 si se trimite in CP si in AM
+        `load_operand_imediat + 'd1: begin
+                                
+                t2_oe = 1;
+                alu_oe = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                cp_we = 1;
+                am_we = 1;
+                                
+                state_next = `load_operand_imediat + 2;
+                                
+        end
+                  
+        `load_operand_imediat + 'd2: begin
+                  
+                am_oe = 1;
+                                
+                state_next = `load_operand_imediat + 3;
+                  
+        end
+                  
+ // Obtinem din RAM valoarea operandului imediat, pe care o memoram in T2
+        `load_operand_imediat + 'd3: begin
+                                
+                ram_oe = 1;
+                t2_we = 1;
+                                
+                state_next = decoded_dst;
+                                
+        end
+                  
+`load_src_reg: begin
+regs_addr = decoded_d ? rm : rg;
+regs_oe = 1;
+t2_we = 1;
+
+
+state_next = decoded_dst;
+end
+        
+`load_src_mem: begin
+t1_oe = 0;
+t2_oe = 1;
+alu_opcode = `OR;
+alu_oe = 1;
+am_we = 1;
+
+
+state_next = `load_src_mem + 1;
+end
+
+
+`load_src_mem + 'd1: begin
+am_oe = 1;
+
+
+state_next = `load_src_mem + 2;
+end
+
+
+`load_src_mem + 'd2: begin
+ram_oe = 1;
+t2_we = 1;
+
+
+state_next = decoded_dst;
+end
+
+
+`load_dst_reg: begin
+regs_addr = decoded_d ? rg : rm;
+regs_oe = 1;
+t1_we = 1;
+
+
+state_next = decoded_exec;
+end
+        
+`load_dst_mem: begin
+t1_oe = 1;
+t2_oe = 0;
+alu_opcode = `OR;
+alu_oe = 1;
+am_we = 1;
+
+
+state_next = `load_dst_mem + 1;
+end
+
+
+`load_dst_mem + 'd1: begin
+am_oe = 1;
+state_next = `load_dst_mem + 2;
+end
+
+
+`load_dst_mem + 'd2: begin
+ram_oe = 1;
+t1_we = 1;
+
+
+state_next = decoded_exec;
+end
+// atunci cand folosim doar T1 si utilizam un singur operand
+// sarim incarcarea T2 
+        `skip_load_src: begin
+                  
+                state_next = decoded_dst;
+                
+ end
+                  
+// atunci cand folosim doar T2 si utilizam un singur operand sarim incarcarea T1
+        `skip_load_dst:  begin
+                  
+                state_next = decoded_exec;
+        
+end
+
+
+        `exec_1op: begin
+            t1_oe = 1;
+            case(cop[4:6])
+                3'b000: begin                               // INC
+                    alu_carry = 1;
+                    alu_opcode = `ADC;
+                end
+                3'b001: begin                               // DEC
+                    alu_carry = 1;
+                    alu_opcode = `SBB1;
+                end
+                3'b010: begin                               // NEG
+                    alu_carry = 0;
+                    alu_opcode = `SBB2;
+                end
+                3'b011: begin                               // NOT
+                    alu_opcode = `NOT;
+                end
+                3'b100: alu_opcode = `SHL;                  // SHL/SAL
+                3'b101: alu_opcode = `SHR;                  // SHR
+                3'b110: alu_opcode = `SAR;                  // SAR
+            endcase
+            alu_oe = 1;
+            t1_we = 1;
+            ind_sel = 1;
+            ind_we = 1;
+
+
+            state_next = decoded_store;
+        end
+        
+        `exec_2op: begin
+            t1_oe = 1;
+            t2_oe = 1;
+            case(cop[4:6])
+                3'b000: begin                               // ADD
+                    alu_carry = 0;
+                    alu_opcode = `ADC;
+                end
+                3'b001: begin                               // ADC
+                    alu_carry = ind[0];
+                    alu_opcode = `ADC;
+                end
+                3'b010: begin                               // SUB/CMP
+                    alu_carry = 0;
+                    alu_opcode = `SBB1;
+                end
+                3'b011: begin                               // SBB
+                    alu_carry = ind[0];
+                    alu_opcode = `SBB1;
+                end
+                3'b100: alu_opcode = `AND;                  // AND/TEST
+                3'b101: alu_opcode = `OR;                   // OR
+                3'b110: alu_opcode = `XOR;                  // XOR
+            endcase
+            alu_oe = 1;
+            t1_we = 1;
+            ind_sel = 1;
+            ind_we = 1;
+
+
+            state_next = decoded_store;
+        end
+                
+// Sarim peste etapa de stocare
+`skip_store: begin
+                
+                state_next = `inc_cp;
+                
+        end
+                
+`store_reg: begin
+            t1_oe = 1;
+            t2_oe = 0;
+            alu_opcode = `OR;
+            alu_oe = 1;
+            regs_addr = decoded_d ? rg : rm;
+            regs_we = 1;
+
+
+            state_next = `inc_cp;
+
+
+        end
+        
+        `store_mem: begin
+            t1_oe = 1;
+            t2_oe = 0;
+            alu_opcode = `OR;
+            alu_oe = 1;
+            am_oe = 1;
+            ram_we = 1;
+
+
+            state_next = `store_mem + 1;
+        end
+
+
+        `store_mem + 'd1: begin
+            state_next = `inc_cp;
+        end
+
+
+        `inc_cp: begin
+            cp_oe = 1;
+            t1_we = 1;
+
+
+            state_next = `inc_cp + 1;
+        end
+
+
+        `inc_cp + 'd1: begin
+            t1_oe = 1;
+            cp_we = 1;
+            alu_oe = 1;
+            alu_carry = 1;
+            alu_opcode = `ADC;
+
+
+            state_next = `fetch;
+        end
+
+
+        default: ;
+    endcase
+end
+
+
+assign disp_state = state;
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Tema 3 - Implementarea calculatorului didactic
+
+
+
+
+A. Modificari Decode: 
+~~~~~~~~~~~~~~~~~~~~~
+
+
+1.        Pentru implementarea instructiunilor de transfer si control MOV, PUSH, POP, CALL, JMP fara operand imediat am introdus conform [1] conditia cop[0:3] == 0000, apoi am continuat decodificarea dupa cop[4:6] conform tabelului.
+        
+        Pentru MOV, bitul d este decodificat pe d, in timp ce pentru celelalte instructiuni care au un singur operand, bitul d este decodificat pe 0
+
+
+        Decodificarea sursei si a destinatiei se face asemanator celorlaltor instructiuni.
+        
+        Exceptii: 
+                PUSH, POP, CALL, JMP - nu incarca sursa        (`skip_load_src) 
+                POP, CALL, JMP - pentru mod = 11 incarca destinatia din reg, altfel nu incarca destinatia (`skip_load_dst)
+
+
+        Store-ul se face ca la celelalte instructiuni, exceptie facand PUSH care utilizeaza memoria RAM intotdeauna
+
+
+
+
+
+
+2.         Pentru implementarea instructiunii MOV cu operand imediat: cop[0:3] = 0010
+        
+        Decodificarea se face similar cu cea pentru MOV, cu exceptia decodificarii sursei si a d. 
+        d este 0, deoarece destinatia rezultatului este intotdeauna RM
+        
+        Pentru decodificarea sursei, am implementat o stare separata numita `load_operand_imediat,
+        care va fi descrisa in sectiunea C
+
+
+
+
+3.        Pentru instructiunile cu doi operanzi, pentru care unul este imediat: cop[0:2] = 010
+
+
+        Decodificarea se face similar cu cea a instructiunilor cu doi operanzi, cu exceptia decodificarii
+        sursei si a d. d este 0, deoarece destinatia rezultatulu este intotdeauna RM
+
+
+        Pentru decodificarea sursei, se foloseste aceeasi stare utilizata mai sus. 
+
+
+
+
+
+
+4.         Pentru decodificarea instructiunilor fara adresa efectiva, PUSHF, POPF, RET si JCOND, am continuat seria de if/else, realizand selectia in functie de bitii [0:6].
+
+
+        Implementarea acestori instructiuni este detaliata in implementarea starilor, si in comentarii.  
+
+
+5.         Am introdus si o noua sectiune pentru decodificarea modurilor de adresare
+        
+        Pentru cop[0] == 0, conform [1], realizam decodificarea pentru modurile de adresare cu adresa efectiva
+        Fata de ce era implementat initial in schelet, am implementat suplimentar decodificarea pentru MOD = 01 si MOD = 10
+        
+        Descrierea implementarii este realizata in sectiunea C
+
+
+
+
+
+
+B. Implementarea instructiunilor
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Implementarea instructiunilor s-a realizat conform schemelor logice din [2].
+
+
+1.         MOV - fara operand imediat / cu operand imediat - starea `transfer
+        
+        Conform figurii 5.4 din [2], aceasta instructiune realizeaza T1 <- T2, dupa
+        care se memoreaza rezultatul conform decoded_store, se incrementeaza CP si se
+        trece la urmatoarea instructiune
+
+
+        Diferenta dintre MOV cu operand imediat si MOV fara operand imediat, consta
+        in modul decodificarii sursei. 
+
+
+
+
+2.         PUSH - starea `decrement_IS
+        
+        Conform figurii 5.4 din [2], decrementam IS, incrarcandu-l in T2, si apoi noul IS
+        il introducem in AM, pentru a schimba adresa la care pointeaza memoria
+
+
+
+
+3.         POP - starea `increment_IS
+
+
+        Conform figurii 5.4 din [2], transferam cuvantul din varful stivei indicat de IS, 
+        la operandul destinatie, dupa care incrementam IS
+
+
+
+
+4.         JMP - neconditionat - starea `jmp
+
+
+        Conform figurii 5.4 din [2], CP sare la valoarea din T1.
+
+
+5.        RET - starea `ret
+        
+        Conform figurii 5.7 din [2], urmarim sa punem in CP valoarea din memorie de la adresa 
+        stocata in IS iar apoi sa incrementam IS.
+
+
+6.         PUSHF - starea `pushf
+        
+        Conform figurii 5.7 din [2], urmarim sa decrementam IS, si sa punem in memorie IND, 
+        la adresa data de valoarea noului IS.
+
+
+
+
+7.        POPF - starea `popf
+        
+        Conform figurii 5.7 din [2], urmarim sa rescriem valoarea indicatorilor IND 
+        cu valoarea aflata in memorie la adresa IS, si apoi sa incrementam IS.
+                  
+
+
+8.        JCOND - starea `jcond
+        
+        Instructiunea JCOND transfera controlul la alta secventa, daca sunt indeplinite
+        conditiile de test, codificate in `jcond + 'd1, altfel se trece la 
+        incrementarea CP, si se continua executia programului.
+
+
+        Transferul controlului la alta secventa se face prin CP = CP + salt.
+
+
+        Dupa calculul sumei, se trece la etapa de `fetch, pentru executia noii instructiuni. 
+
+
+
+
+9.         CALL - starea `call
+
+
+        Instructiunea CALL realizeaza un salt neconditionat la o procedura. 
+
+
+        
+        Conform figurii 5.4 din [2], se incrementeaza CP, se decrementeaza IS, se introduce
+        in RAM la noua valoare a lui IS, valoarea lui CP, iar apoi se efectueaza un JMP la CP. 
+
+
+
+
+C. Implementarea modurilor de adresare
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+        Modurile MOD = 00 si MOD = 11 fiind deja implementate, voi detalia doar
+        functionarea modurilor de adresare implementate de mine. 
+
+
+1.         MOD = 10 - adresare bazata + indexata
+
+
+
+
+        1.1.         Adresare bazata sau indexata (rm[0] = 1) - starea `addr_reg_deplasata
+                
+                Conform [2], pag 21/22, punctul 7 si 8, adresa efectiva se obtine sub forma
+                [XA/XB/BA/BB + Deplasament]
+
+
+                Descrierea pe larg a implementarii este realizata in comentarii
+
+
+        
+        1.2.        Adresarea bazata si indexata (rm[0] = 0) - starea `addr_sum_deplasata
+
+
+                Conform [2], pag 23, punctul 9, adresa efectiva se obtine sub forma
+                [BA + XA/XB / BB + XA/XB + Deplasament]
+
+
+                Descrierea pe larg a implementarii este realizata in comentarii
+
+
+
+
+2.         MOD = 01
+
+
+        
+        1.1.         Adresare indirecta - stare `addr_indirect
+                
+                Conform [2], pag 17, punctul 2, vom lua din memoria RAM operandul care reprezinta
+                valoarea deplasamentului. 
+        
+
+
+        1.2.        Adresarea dublu indirecta - stare `addr_2x_indirect
+
+
+                In cazul deplasarii dublu indirecte, deplasamentul va fi luat tot din RAM, insa sub forma
+                adresa efectiva = [[Deplasament]]
+                
+                Detalii suplimentare in comentarii
+                  
+
+
+        1.3.        Adresare indirecta - suma de registre cu autodecrementare a registrului index, inainte de calculul adresei efective - stare `addr_autodecrement
+
+
+                Conform [2], pag 20, punctul 6, adresa efectiva va fi adresa obtinuta prin insumarea 
+                BB/BA + XA-, unde XA- este valoarea obtinuta dupa decrementarea XA initial
+
+
+
+
+        1.4.        Adresare indirecta - suma de registre cu autoincrementare a registrului index, dupa
+                calculul adresei efective - stare `addr_autoincrement
+
+
+Conform [2], pag 19, punctul 5, efectiva va fi adresa obtinuta prin insumarea BA/BB + XA/XB, iar apoi XA/XB se incrementeaza
+
+
+
+
+3.        Memorarea operandului imediat - stare `load_operand_imediat
+
+
+        Se urmareste memorarea in T2 a operandului imediat
+
+
+        Pentru obtinerea operandului, incrementam CP, si luam din RAM valoarea de 
+        la adresa CP+1, care reprezinta chiar valoarea operandului imediat. Aceasta
+        valoare o vom memora in T2
