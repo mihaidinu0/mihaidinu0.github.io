@@ -1,0 +1,39 @@
+else if(cop[4:6] == 3'b010) // PUSH
+begin
+                                
+        decoded_d_next = 0;
+        decoded_exec_next = `decrement_IS;
+        decoded_dst_next = (mod == 2'b11) ? `load_dst_reg : `load_dst_mem; 
+        decoded_src_next = `skip_load_src;
+        decoded_store_next = `store_mem;
+end
+
+
+// valoarea lui IS se pune in T2
+`decrement_IS: begin
+        
+                regs_oe = 1;
+                regs_addr = `IS;
+                
+                t2_we = 1;
+                
+                state_next = `decrement_IS + 1;
+                  
+        end
+        
+// se decrementeaza T1 (adica IS) si se memoreaza in IS
+        `decrement_IS + 'd1: begin
+                  
+                t2_oe = 1;
+                alu_oe = 1;
+                
+                regs_addr = `IS;
+                regs_we = 1;
+                
+                alu_carry = 1;
+                alu_opcode = `SBB2;
+                
+                am_we = 1;
+                
+                state_next = decoded_store;
+        end

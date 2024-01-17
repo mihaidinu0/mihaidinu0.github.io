@@ -1,0 +1,81 @@
+else if(cop[4:6] == 3'b011) // POP 
+begin
+        decoded_d_next = 0;
+        decoded_exec_next = `increment_IS;
+        decoded_dst_next = (mod != 2'b11) ? `skip_load_dst : `load_dst_reg;
+        decoded_src_next = `skip_load_src;
+        decoded_store_next = (mod == 2'b11) ? `store_reg : `store_mem;
+end
+
+// Se obtine din memorie operandul din varful stivei indicat de IS
+        `increment_IS: begin
+        
+                regs_oe = 1;
+                regs_addr = `IS;
+                
+                am_we = 1;
+                
+                state_next = `increment_IS + 1;
+                  
+        end
+        
+`increment_IS + 'd1: begin
+        
+                am_oe = 1;
+                
+                state_next = `increment_IS + 2;
+                
+        end
+// Se introduce valoarea obtinuta in T2, conform Fig 5.4
+        `increment_IS + 'd2: begin
+        
+                ram_oe = 1;
+                t2_we = 1;
+                
+                state_next = `increment_IS + 3;
+                
+         end
+        
+// Se transfera in memorie vechea valoare din T1
+        `increment_IS + 'd3: begin
+                t1_oe = 1;
+                am_we = 1;
+                
+                alu_carry = 0;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                
+                state_next = `increment_IS + 4;
+                
+        end
+
+
+// Se incrementeaza IS, folosind T1
+        `increment_IS + 'd4: begin
+        
+                regs_oe = 1;
+                regs_addr = `IS;
+                t1_we = 1;
+                
+                state_next = `increment_IS + 5;
+                
+        end
+        
+// Se suprascrie IS cu noua valoare
+        `increment_IS + 'd5: begin
+        
+                t1_oe = 1;
+                
+                regs_we = 1;
+                regs_addr = `IS;
+        
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                
+                alu_oe = 1;
+                
+// se transfera T2 in T1 pt ca operandul sa ajunga in registrul destinatie
+                state_next = `transfer;
+                
+        end

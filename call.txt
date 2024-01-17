@@ -1,0 +1,138 @@
+else if(cop[4:6] == 3'b100) // CALL
+begin
+        decoded_d_next = 0;
+        decoded_exec_next = `call;
+        decoded_dst_next = (mod != 2'b11) ? `skip_load_dst : `load_dst_reg;
+        decoded_src_next = `skip_load_src;
+        decoded_store_next = (mod == 2'b11) ? `store_reg : `store_mem;
+end
+
+
+`call: begin
+                                
+                cp_oe = 1;
+                t2_we = 1;
+                                
+                state_next = `call + 1;
+                  
+        end
+                  
+        `call + 'd1:  begin
+                  
+                t2_oe = 1;
+                t1_oe = 0;
+                
+                alu_carry = 1;
+                alu_opcode = `ADC;
+                                
+                alu_oe = 1;
+                                
+                cp_we = 1;
+                                
+                state_next = `call + 2;
+        end
+        
+// se decrementeaza IS (se introduce IS in T2, si apoi
+// rezultatul se reintroduce in IS) 
+        `call + 'd2: begin
+                                
+                regs_addr = `IS;
+                regs_oe = 1;
+                
+                t2_we = 1;
+                                
+                state_next = `call + 3;
+                                
+        end
+                  
+        `call + 'd3: begin
+                                
+                t1_oe = 0;
+                t2_oe = 1;
+                                
+                alu_carry = 1;
+                alu_opcode = `SBB2;
+                                
+                alu_oe = 1;
+                                
+                regs_addr = `IS;
+                regs_we = 1;
+                                
+                state_next = `call + 4;
+                                
+        end
+                  
+// se introduce valoarea IS in AM pentru a scrie la acea valoare a adresei
+        `call + 'd4: begin
+                                
+                regs_addr = `IS;
+                regs_oe = 1;
+                                
+                am_we = 1;
+                                
+                state_next = `call + 5;                                
+                  
+        end
+                  
+// se memoreaza la adresa IS in RAM, valoarea din CP
+        `call + 'd5: begin
+                                
+                cp_oe = 1;
+                am_oe = 1;
+                                
+                ram_we = 1;
+                                
+                state_next = `call + 6;
+                  
+end
+                  
+`call + 'd6: // starea se poate inlocui cu un apel de JMP
+begin
+                                
+                t1_oe = 1;
+                t2_oe = 0;
+                                
+                alu_opcode = `OR;
+                alu_oe = 1;
+                                
+                cp_we = 1;
+                                
+                state_next = `fetch;
+                                
+        end
+                  
+`addr_sum: begin
+regs_addr = rm[1] ? `BB : `BA;
+regs_oe = 1;
+t1_we = 1;
+
+
+state_next = `addr_sum + 1;
+end
+
+
+`addr_sum + 'd1: begin
+regs_addr = rm[2] ? `XB : `XA;
+regs_oe = 1;        
+t2_we = 1;
+
+
+state_next = `addr_sum + 2;
+end
+
+
+`addr_sum + 'd2: begin
+t1_oe = 1;
+t2_oe = 1;
+alu_carry = 0;
+alu_opcode = `ADC;
+alu_oe = 1;
+if(decoded_d)
+t2_we = 1;
+else
+t1_we = 1;
+
+
+state_next = decoded_src;
+end
+
